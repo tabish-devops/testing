@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps CI/CD Pipeline Simulator & Jenkins Tester</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        devops: {
+                            bg: '#0f172a',
+                            panel: '#1e293b',
+                            card: '#334155',
+                            accent: '#3b82f6',
+                            success: '#22c55e',
+                            warning: '#eab308',
+                            danger: '#ef4444',
+                            terminal: '#090d16'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'Courier New', 'monospace'],
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbars for log outputs */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Pulse animations for pipeline nodes */
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(59, 130, 246, 1); box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 0.3); box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
+        }
+        .pipeline-active {
+            animation: pulse-border 1.5s infinite;
+        }
+        /* Glassmorphism panel styling */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Top Header / Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-50 backdrop-blur">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Branding -->
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-blue-600 rounded-lg text-white shadow-lg shadow-blue-500/30">
+                        <i class="fa-solid fa-diagram-project text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="font-bold text-lg tracking-tight text-white flex items-center gap-2">
+                            PipelineOps <span class="text-xs bg-blue-500/20 text-blue-400 font-mono px-2 py-0.5 rounded border border-blue-500/30">v2.4-Jenkins</span>
+                        </span>
+                        <p class="text-xs text-slate-400 hidden sm:block">Interactive CI/CD Flow Simulator & Server Monitor</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <nav class="flex space-x-1 sm:space-x-2">
+                    <button id="tab-dashboard" onclick="switchTab('dashboard')" class="nav-tab active-tab px-3 py-2 rounded-md text-sm font-medium transition flex items-center gap-2 bg-blue-600 text-white">
+                        <i class="fa-solid fa-[#000] fa-gauge"></i> <span class="hidden md:inline">Pipeline Visualizer</span>
+                    </button>
+                    <button id="tab-jenkins" onclick="switchTab('jenkins')" class="nav-tab px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-brands fa-jenkins"></i> <span class="hidden md:inline">Jenkins & Webhooks</span>
+                    </button>
+                    <button id="tab-monitor" onclick="switchTab('monitor')" class="nav-tab px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-server"></i> <span class="hidden md:inline">Server & Target Monitor</span>
+                    </button>
+                    <button id="tab-tools" onclick="switchTab('tools')" class="nav-tab px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-wrench"></i> <span class="hidden md:inline">API & Env Tester</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Notification Banner / Global Toast (Hidden by default) -->
+        <div id="toast" class="hidden fixed bottom-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white flex items-center gap-3 transition-all transform translate-y-0 max-w-md">
+            <i id="toast-icon" class="fa-solid text-xl"></i>
+            <div>
+                <h4 id="toast-title" class="font-bold text-sm">Notification</h4>
+                <p id="toast-msg" class="text-xs text-slate-200"></p>
+            </div>
+        </div>
+
+        <!-- SECTION 1: DASHBOARD / PIPELINE VISUALIZER -->
+        <section id="view-dashboard" class="space-y-6">
+            <!-- Controls Bar & Webhook Trigger -->
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono">
+                        <i class="fa-brands fa-git-alt text-orange-500 text-sm"></i>
+                        <span>branch:</span>
+                        <select id="branch-select" class="bg-transparent text-white font-semibold focus:outline-none cursor-pointer">
+                            <option value="main" class="bg-slate-800">main</option>
+                            <option value="feature/auth-api" class="bg-slate-800">feature/auth-api</option>
+                            <option value="bugfix/cors-issue" class="bg-slate-800">bugfix/cors-issue</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono">
+                        <i class="fa-solid fa-folder-open text-amber-400 text-sm"></i>
+                        <span>Target:</span>
+                        <span class="text-slate-200">/home/ubuntu/my-project</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="runPipeline('success')" id="btn-run-success" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95">
+                        <i class="fa-solid fa-play"></i> Trigger Pipeline
+                    </button>
+                    <button onclick="runPipeline('failure')" id="btn-run-fail" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 px-3 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 active:scale-95">
+                        <i class="fa-solid fa-bug"></i> Simulate Failure
+                    </button>
+                    <button onclick="resetPipeline()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-sm font-semibold transition border border-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visual Pipeline Stage Flow -->
+            <div class="glass-panel p-6 rounded-xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired text-blue-400"></i> Execution Pipeline Stages
+                    </h2>
+                    <div id="pipeline-status-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-slate-500"></span> IDLE
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 relative">
+                    <!-- Stage 1: Trigger -->
+                    <div id="stage-1" class="stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all">
+                        <div class="stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-bolt"></i>
+                        </div>
+                        <h3 class="text-xs font-bold text-slate-200">1. Trigger</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">GitHub Webhook</p>
+                        <div class="stage-status mt-2 text-[11px] text-slate-500 font-mono">Waiting</div>
+                    </div>
+
+                    <!-- Stage 2: Git Checkout -->
+                    <div id="stage-2" class="stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all">
+                        <div class="stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg">
+                            <i class="fa-brands fa-github"></i>
+                        </div>
+                        <h3 class="text-xs font-bold text-slate-200">2. Git Checkout</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Pull Repository</p>
+                        <div class="stage-status mt-2 text-[11px] text-slate-500 font-mono">Waiting</div>
+                    </div>
+
+                    <!-- Stage 3: Lint & Quality -->
+                    <div id="stage-3" class="stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all">
+                        <div class="stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h3 class="text-xs font-bold text-slate-200">3. Code Quality</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Linting & Check</p>
+                        <div class="stage-status mt-2 text-[11px] text-slate-500 font-mono">Waiting</div>
+                    </div>
+
+                    <!-- Stage 4: Unit Testing -->
+                    <div id="stage-4" class="stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all">
+                        <div class="stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-vial"></i>
+                        </div>
+                        <h3 class="text-xs font-bold text-slate-200">4. Unit Tests</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">JUnit / Jest</p>
+                        <div class="stage-status mt-2 text-[11px] text-slate-500 font-mono">Waiting</div>
+                    </div>
+
+                    <!-- Stage 5: Build Artifact -->
+                    <div id="stage-5" class="stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all">
+                        <div class="stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-box-archive"></i>
+                        </div>
+                        <h3 class="text-xs font-bold text-slate-200">5. Build Artifact</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Maven / Docker</p>
+                        <div class="stage-status mt-2 text-[11px] text-slate-500 font-mono">Waiting</div>
+                    </div>
+
+                    <!-- Stage 6: Deploy -->
+                    <div id="stage-6" class="stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all">
+                        <div class="stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-server"></i>
+                        </div>
+                        <h3 class="text-xs font-bold text-slate-200">6. Deploy Target</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">/home/ubuntu</p>
+                        <div class="stage-status mt-2 text-[11px] text-slate-500 font-mono">Waiting</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal / Live Log Output Screen -->
+            <div class="glass-panel rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
+                <!-- Terminal Title Bar -->
+                <div class="bg-slate-900 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div class="flex space-x-1.5">
+                            <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                            <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                            <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                        </div>
+                        <span class="text-xs font-mono text-slate-400 ml-2 flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-slate-500"></i> jenkins-worker-node-ubuntu:/var/jenkins_home/workspace/pipeline-job
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="clearConsoleLog()" class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+                            <i class="fa-solid fa-eraser"></i> Clear Console
+                        </button>
+                        <button onclick="copyConsoleLog()" class="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+                            <i class="fa-solid fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Console Output Container -->
+                <div id="console-output" class="p-4 bg-devops-terminal font-mono text-xs sm:text-sm h-80 overflow-y-auto space-y-1 text-slate-300">
+                    <div class="text-slate-500 italic">[System Initialized] Ready to run CI/CD workflow... Click "Trigger Pipeline" to begin.</div>
+                </div>
+            </div>
+
+            <!-- Build History Table -->
+            <div class="glass-panel p-6 rounded-xl">
+                <h3 class="text-md font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-400"></i> Recent Build Executions
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
+                            <tr>
+                                <th class="p-3">Build #</th>
+                                <th class="p-3">Branch</th>
+                                <th class="p-3">Trigger</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Duration</th>
+                                <th class="p-3">Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="build-history-tbody" class="divide-y divide-slate-800 text-slate-300">
+                            <!-- Pre-populated sample historical build -->
+                            <tr class="hover:bg-slate-800/40">
+                                <td class="p-3 text-blue-400 font-bold">#101</td>
+                                <td class="p-3">main</td>
+                                <td class="p-3 text-slate-400">GitHub Push</td>
+                                <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">SUCCESS</span></td>
+                                <td class="p-3">14.2s</td>
+                                <td class="p-3 text-slate-500">10 mins ago</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SECTION 2: JENKINS INTEGRATION & CODE SNIPPETS -->
+        <section id="view-jenkins" class="hidden space-y-6">
+            <!-- Webhook Generator Box -->
+            <div class="glass-panel p-6 rounded-xl border-l-4 border-l-blue-500">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2 mb-2">
+                    <i class="fa-brands fa-github text-white"></i> GitHub Webhook Endpoint Generator
+                </h2>
+                <p class="text-xs text-slate-400 mb-4">Configure this payload URL in your GitHub Repository settings (Settings > Webhooks) to enable auto-triggering on git push.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Server Host IP / Domain</label>
+                        <div class="flex">
+                            <input type="text" id="input-server-ip" value="172.31.33.191" class="bg-slate-900 border border-slate-700 rounded-l-lg px-3 py-2 text-sm text-slate-200 font-mono w-full focus:outline-none focus:border-blue-500">
+                            <button onclick="updateWebhookUrl()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 text-xs text-slate-200 rounded-r-lg font-semibold">Update</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Jenkins Port</label>
+                        <input type="text" id="input-server-port" value="8080" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono w-full focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between font-mono text-xs text-emerald-400">
+                    <span id="webhook-url-display" class="truncate">http://172.31.33.191:8080/github-webhook/</span>
+                    <button onclick="copyToClipboard('webhook-url-display')" class="ml-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-sans font-semibold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-copy"></i> Copy Payload URL
+                    </button>
+                </div>
+            </div>
+
+            <!-- Jenkinsfile Snippets Generator -->
+            <div class="glass-panel p-6 rounded-xl space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-brands fa-jenkins text-amber-500"></i> Production Jenkinsfile Templates
+                    </h2>
+                    
+                    <div class="flex space-x-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
+                        <button onclick="switchSnippet('scripted')" id="snip-scripted" class="snippet-btn active-snip px-3 py-1.5 rounded-md font-semibold bg-blue-600 text-white">Scripted Pipeline</button>
+                        <button onclick="switchSnippet('declarative')" id="snip-declarative" class="snippet-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white">Declarative Pipeline</button>
+                        <button onclick="switchSnippet('docker')" id="snip-docker" class="snippet-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white">Docker & Systemd</button>
+                    </div>
+                </div>
+
+                <!-- Code Container -->
+                <div class="relative">
+                    <button onclick="copySnippetCode()" class="absolute top-3 right-3 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded text-xs font-mono transition flex items-center gap-1.5 z-10">
+                        <i class="fa-solid fa-copy"></i> Copy Code
+                    </button>
+                    <pre id="snippet-code-box" class="bg-slate-950 p-4 rounded-xl text-xs font-mono text-blue-300 overflow-x-auto border border-slate-800 leading-relaxed min-h-[300px]"><code>node {
+    stage('1. Checkout Code') {
+        sh 'mkdir -p /home/ubuntu/my-project'
+        dir('/home/ubuntu/my-project') {
+            git branch: 'main', url: 'https://github.com/your-username/your-repo.git'
+        }
+    }
+    stage('2. Install & Build') {
+        dir('/home/ubuntu/my-project') {
+            sh 'npm install || true'
+        }
+    }
+    stage('3. Restart Service') {
+        sh 'sudo systemctl restart my-app || echo "Deployment done"'
+    }
+}</code></pre>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SECTION 3: SERVER & DEPLOYMENT MONITOR -->
+        <section id="view-monitor" class="hidden space-y-6">
+            <!-- System Stats Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
+                        <span>CPU USAGE</span>
+                        <i class="fa-solid fa-microchip text-blue-400"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-white font-mono" id="stat-cpu">12.4%</div>
+                    <div class="w-full bg-slate-800 rounded-full h-1.5 mt-3">
+                        <div id="bar-cpu" class="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: 12%"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
+                        <span>RAM USAGE</span>
+                        <i class="fa-solid fa-memory text-emerald-400"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-white font-mono" id="stat-ram">1.8 / 4.0 GB</div>
+                    <div class="w-full bg-slate-800 rounded-full h-1.5 mt-3">
+                        <div id="bar-ram" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 45%"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
+                        <span>DISK SPACE (/home/ubuntu)</span>
+                        <i class="fa-solid fa-hard-drive text-amber-400"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-white font-mono">14.2 / 30 GB</div>
+                    <div class="w-full bg-slate-800 rounded-full h-1.5 mt-3">
+                        <div class="bg-amber-500 h-1.5 rounded-full" style="width: 47%"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
+                        <span>Uptime</span>
+                        <i class="fa-solid fa-clock text-purple-400"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-white font-mono">18d 04h 12m</div>
+                    <p class="text-[10px] text-emerald-400 mt-2"><i class="fa-solid fa-circle text-[8px]"></i> System Stable</p>
+                </div>
+            </div>
+
+            <!-- Server Systemd Services Panel -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-panel p-6 rounded-xl space-y-4">
+                    <h3 class="text-md font-bold text-white flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-gears text-blue-400"></i> Linux Systemd Services</span>
+                        <button onclick="refreshServices()" class="text-xs text-slate-400 hover:text-white"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+                    </h3>
+
+                    <div class="space-y-3">
+                        <!-- Jenkins Service -->
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+                                <div>
+                                    <div class="text-xs font-bold text-slate-200">jenkins.service</div>
+                                    <div class="text-[10px] text-slate-400">Jenkins Automation Server (Port 8080)</div>
+                                </div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">active (running)</span>
+                        </div>
+
+                        <!-- Java Runtime Service -->
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                <div>
+                                    <div class="text-xs font-bold text-slate-200">openjdk-17-jdk</div>
+                                    <div class="text-[10px] text-slate-400">Java Runtime Environment</div>
+                                </div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">installed (v17.0.9)</span>
+                        </div>
+
+                        <!-- Target App Service -->
+                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div id="app-service-dot" class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                <div>
+                                    <div class="text-xs font-bold text-slate-200">my-project.service</div>
+                                    <div class="text-[10px] text-slate-400">Path: /home/ubuntu/my-project</div>
+                                </div>
+                            </div>
+                            <span id="app-service-status" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">active (running)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Directory Explorer Simulator -->
+                <div class="glass-panel p-6 rounded-xl space-y-4">
+                    <h3 class="text-md font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-folder-tree text-amber-400"></i> File Tree: /home/ubuntu/my-project
+                    </h3>
+                    
+                    <div id="file-tree-box" class="bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-2 text-slate-300">
+                        <div class="flex items-center gap-2 text-amber-400">
+                            <i class="fa-regular fa-folder-open"></i> my-project/
+                        </div>
+                        <div class="pl-4 space-y-1.5">
+                            <div class="flex items-center justify-between text-slate-300">
+                                <span><i class="fa-brands fa-git-alt text-orange-400 mr-1.5"></i> .git/</span>
+                                <span class="text-[10px] text-slate-500">dir</span>
+                            </div>
+                            <div class="flex items-center justify-between text-slate-300">
+                                <span><i class="fa-solid fa-file-code text-blue-400 mr-1.5"></i> index.js</span>
+                                <span class="text-[10px] text-slate-500">2.4 KB</span>
+                            </div>
+                            <div class="flex items-center justify-between text-slate-300">
+                                <span><i class="fa-solid fa-file-code text-emerald-400 mr-1.5"></i> package.json</span>
+                                <span class="text-[10px] text-slate-500">840 B</span>
+                            </div>
+                            <div class="flex items-center justify-between text-slate-300">
+                                <span><i class="fa-brands fa-jenkins text-amber-500 mr-1.5"></i> Jenkinsfile</span>
+                                <span class="text-[10px] text-slate-500">1.1 KB</span>
+                            </div>
+                            <div id="file-build-artifact" class="flex items-center justify-between text-emerald-400">
+                                <span><i class="fa-solid fa-box text-purple-400 mr-1.5"></i> build/app.bundle.js</span>
+                                <span class="text-[10px] text-emerald-500">UPDATED JUST NOW</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- SECTION 4: INTERACTIVE TEST TOOLS -->
+        <section id="view-tools" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- API & Endpoint Health Check Tester -->
+                <div class="glass-panel p-6 rounded-xl space-y-4">
+                    <h3 class="text-md font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-heart-pulse text-rose-500"></i> Deployed App Health Check Tester
+                    </h3>
+                    <p class="text-xs text-slate-400">Simulate sending HTTP GET requests to test if your deployed app endpoint is responsive after pipeline deployment.</p>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs text-slate-300 mb-1">Target URL</label>
+                            <div class="flex">
+                                <span class="bg-slate-800 border border-slate-700 px-3 py-2 rounded-l-lg text-xs font-mono text-slate-400 flex items-center">GET</span>
+                                <input type="text" id="test-url" value="http://localhost:3000/api/health" class="bg-slate-900 border border-slate-700 px-3 py-2 text-xs font-mono text-white w-full focus:outline-none">
+                                <button onclick="sendHealthCheck()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 rounded-r-lg text-xs font-semibold transition">Test API</button>
+                            </div>
+                        </div>
+
+                        <!-- Response Screen -->
+                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 font-mono text-xs space-y-2">
+                            <div class="flex items-center justify-between text-slate-400">
+                                <span>RESPONSE STATUS:</span>
+                                <span id="api-status-code" class="font-bold text-slate-500">NOT TESTED</span>
+                            </div>
+                            <div id="api-response-body" class="text-slate-400 text-[11px] pt-2 border-t border-slate-900">
+                                Click "Test API" above to send request...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environment Variable & Secret Simulator -->
+                <div class="glass-panel p-6 rounded-xl space-y-4">
+                    <h3 class="text-md font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-key text-amber-400"></i> Jenkins Credentials & Env Variables (.env)
+                    </h3>
+                    <p class="text-xs text-slate-400">Manage environment secrets passed to your build runner.</p>
+
+                    <div class="space-y-3">
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                                <input type="text" value="PORT" readonly class="bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono px-3 py-1.5 rounded w-1/3">
+                                <input type="text" value="8080" class="bg-slate-900 border border-slate-700 text-xs text-emerald-400 font-mono px-3 py-1.5 rounded w-2/3">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" value="NODE_ENV" readonly class="bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono px-3 py-1.5 rounded w-1/3">
+                                <input type="text" value="production" class="bg-slate-900 border border-slate-700 text-xs text-emerald-400 font-mono px-3 py-1.5 rounded w-2/3">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" value="GITHUB_TOKEN" readonly class="bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono px-3 py-1.5 rounded w-1/3">
+                                <input type="password" value="ghp_98712398712938172938" class="bg-slate-900 border border-slate-700 text-xs text-slate-500 font-mono px-3 py-1.5 rounded w-2/3">
+                            </div>
+                        </div>
+
+                        <button onclick="saveEnvVars()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 rounded-lg font-semibold transition">
+                            <i class="fa-solid fa-floppy-disk mr-1"></i> Save Environment Config
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let buildCounter = 102;
+        let isRunning = false;
+        let currentTab = 'dashboard';
+
+        // Code snippets library
+        const snippets = {
+            scripted: `node {
+    stage('1. Checkout Code') {
+        sh 'mkdir -p /home/ubuntu/my-project'
+        dir('/home/ubuntu/my-project') {
+            git branch: 'main', url: 'https://github.com/your-username/your-repo.git'
+        }
+    }
+    stage('2. Install & Build') {
+        dir('/home/ubuntu/my-project') {
+            sh 'npm install || true'
+        }
+    }
+    stage('3. Restart Service') {
+        sh 'sudo systemctl restart my-app || echo "Deployment done"'
+    }
+}`,
+            declarative: `pipeline {
+    agent any
+
+    environment {
+        REPO_URL = 'https://github.com/your-username/your-repo.git'
+        TARGET_DIR = '/home/ubuntu/my-project'
+        BRANCH_NAME = 'main'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                sh "mkdir -p \${TARGET_DIR}"
+                dir("\${TARGET_DIR}") {
+                    git branch: "\${BRANCH_NAME}", url: "\${REPO_URL}"
+                }
+            }
+        }
+        stage('Test & Build') {
+            steps {
+                dir("\${TARGET_DIR}") {
+                    sh 'echo "Running tests..."'
+                    sh 'npm test || true'
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo "Code successfully deployed to \${TARGET_DIR}"
+            }
+        }
+    }
+}`,
+            docker: `pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-username/your-repo.git'
+            }
+        }
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -t my-app:latest .'
+            }
+        }
+        stage('Deploy Container') {
+            steps {
+                sh 'docker stop my-app-container || true'
+                sh 'docker run -d --name my-app-container -p 80:80 my-app:latest'
+            }
+        }
+    }
+}`
+        };
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            ['dashboard', 'jenkins', 'monitor', 'tools'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('bg-blue-600', 'text-white');
+                document.getElementById(`tab-${t}`).classList.add('text-slate-300');
+            });
+
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabName}`);
+            activeBtn.classList.add('bg-blue-600', 'text-white');
+            activeBtn.classList.remove('text-slate-300');
+        }
+
+        async function runPipeline(mode = 'success') {
+            if (isRunning) return;
+            isRunning = true;
+
+            const branch = document.getElementById('branch-select').value;
+            const buildNum = `#${buildCounter++}`;
+            const consoleBox = document.getElementById('console-output');
+            const badge = document.getElementById('pipeline-status-badge');
+
+            // Reset UI
+            resetStageStyles();
+            consoleBox.innerHTML = '';
+            
+            badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-2";
+            badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span> EXECUTING (${buildNum})`;
+
+            const startTime = Date.now();
+
+            const stages = [
+                { id: 1, name: "Trigger", log: `[${getTimestamp()}] Triggered by GitHub push event on refs/heads/${branch}` },
+                { id: 2, name: "Git Checkout", log: `[${getTimestamp()}] Cloning repository -> https://github.com/user/project.git\nChecking out branch '${branch}' into /home/ubuntu/my-project` },
+                { id: 3, name: "Code Quality", log: `[${getTimestamp()}] Running ESLint & Static Analysis...\n0 errors, 0 warnings found.` },
+                { id: 4, name: "Unit Tests", log: mode === 'failure' 
+                    ? `[${getTimestamp()}] Executing test suite...\nFAIL: src/auth.test.js > token validation failed (Expected 200, got 500)`
+                    : `[${getTimestamp()}] Executing test suite...\nPASS: 18/18 tests succeeded in 1.4s.` },
+                { id: 5, name: "Build Artifact", log: `[${getTimestamp()}] Bundling code & creating distribution package...\nCreated build/app.bundle.js (420 KB)` },
+                { id: 6, name: "Deploy Target", log: `[${getTimestamp()}] Copying artifact to /home/ubuntu/my-project...\nRestarting systemd service: sudo systemctl restart my-project` }
+            ];
+
+            for (let i = 0; i < stages.length; i++) {
+                const stage = stages[i];
+                
+                // If failure mode and stage 4 (tests)
+                if (mode === 'failure' && stage.id === 4) {
+                    setStageState(stage.id, 'running');
+                    appendLog(consoleBox, stage.log, 'text-amber-400');
+                    await sleep(1000);
+                    setStageState(stage.id, 'failed');
+                    appendLog(consoleBox, `\n[FATAL ERROR] Pipeline aborted due to test failure in Stage ${stage.id} (${stage.name})`, 'text-rose-500 font-bold');
+                    
+                    badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-2";
+                    badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> FAILED`;
+                    
+                    addHistoryRow(buildNum, branch, 'Webhook', 'FAILED', `${((Date.now() - startTime)/1000).toFixed(1)}s`);
+                    showToast('Pipeline Failed', `Build ${buildNum} failed at stage ${stage.name}`, 'fa-triangle-exclamation', 'bg-rose-600');
+                    isRunning = false;
+                    return;
+                }
+
+                setStageState(stage.id, 'running');
+                appendLog(consoleBox, stage.log, 'text-blue-300');
+                await sleep(1200);
+                setStageState(stage.id, 'success');
+            }
+
+            // Completed successfully
+            appendLog(consoleBox, `\n[SUCCESS] Pipeline completed successfully! Target /home/ubuntu/my-project is live.`, 'text-emerald-400 font-bold');
+            badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-2";
+            badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> SUCCESS`;
+            
+            const duration = `${((Date.now() - startTime)/1000).toFixed(1)}s`;
+            addHistoryRow(buildNum, branch, 'Webhook', 'SUCCESS', duration);
+            showToast('Pipeline Success!', `Build ${buildNum} successfully deployed in ${duration}`, 'fa-circle-check', 'bg-emerald-600');
+            
+            // Highlight updated file in server monitor view
+            document.getElementById('file-build-artifact').classList.add('animate-pulse');
+            setTimeout(() => document.getElementById('file-build-artifact').classList.remove('animate-pulse'), 3000);
+
+            isRunning = false;
+        }
+
+        /* Helper Functions for Pipeline Styling */
+        function setStageState(stageId, state) {
+            const card = document.getElementById(`stage-${stageId}`);
+            const statusDiv = card.querySelector('.stage-status');
+            const iconDiv = card.querySelector('.stage-icon');
+
+            card.className = "stage-card rounded-xl p-4 text-center transition-all ";
+
+            if (state === 'running') {
+                card.classList.add('bg-slate-900', 'border-2', 'border-blue-500', 'pipeline-active');
+                iconDiv.className = "stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg animate-spin";
+                statusDiv.innerHTML = "<span class='text-blue-400'>Running...</span>";
+            } else if (state === 'success') {
+                card.classList.add('bg-slate-900/90', 'border', 'border-emerald-500/50');
+                iconDiv.className = "stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg";
+                statusDiv.innerHTML = "<span class='text-emerald-400 font-bold'>✓ Passed</span>";
+            } else if (state === 'failed') {
+                card.classList.add('bg-slate-900/90', 'border', 'border-rose-500');
+                iconDiv.className = "stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg";
+                statusDiv.innerHTML = "<span class='text-rose-400 font-bold'>✗ Failed</span>";
+            }
+        }
+
+        function resetStageStyles() {
+            for (let i = 1; i <= 6; i++) {
+                const card = document.getElementById(`stage-${i}`);
+                card.className = "stage-card bg-slate-900 border border-slate-800 rounded-xl p-4 text-center transition-all";
+                card.querySelector('.stage-icon').className = "stage-icon w-10 h-10 mx-auto mb-2 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-lg";
+                card.querySelector('.stage-status').innerHTML = "Waiting";
+            }
+        }
+
+        function resetPipeline() {
+            if (isRunning) return;
+            resetStageStyles();
+            document.getElementById('console-output').innerHTML = '<div class="text-slate-500 italic">[System Initialized] Console reset. Ready to run CI/CD workflow.</div>';
+            const badge = document.getElementById('pipeline-status-badge');
+            badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2";
+            badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> IDLE`;
+        }
+
+        function appendLog(container, text, colorClass = 'text-slate-300') {
+            const line = document.createElement('div');
+            line.className = `${colorClass} whitespace-pre-wrap leading-relaxed`;
+            line.textContent = text;
+            container.appendChild(line);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addHistoryRow(buildNum, branch, trigger, status, duration) {
+            const tbody = document.getElementById('build-history-tbody');
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-800/40 transition";
+            
+            const badgeClass = status === 'SUCCESS' 
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+
+            tr.innerHTML = `
+                <td class="p-3 text-blue-400 font-bold">${buildNum}</td>
+                <td class="p-3">${branch}</td>
+                <td class="p-3 text-slate-400">${trigger}</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg border ${badgeClass}">${status}</span></td>
+                <td class="p-3">${duration}</td>
+                <td class="p-3 text-slate-500">Just now</td>
+            `;
+            tbody.insertBefore(tr, tbody.firstChild);
+        }
+
+        /* Snippet Tab Handler */
+        function switchSnippet(type) {
+            document.querySelectorAll('.snippet-btn').forEach(btn => {
+                btn.className = "snippet-btn px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition";
+            });
+            document.getElementById(`snip-${type}`).className = "snippet-btn active-snip px-3 py-1.5 rounded-md font-semibold bg-blue-600 text-white transition";
+            document.getElementById('snippet-code-box').querySelector('code').textContent = snippets[type];
+        }
+
+        function copySnippetCode() {
+            const code = document.getElementById('snippet-code-box').querySelector('code').textContent;
+            copyToClipboardText(code);
+            showToast('Copied!', 'Jenkinsfile snippet copied to clipboard', 'fa-copy', 'bg-blue-600');
+        }
+
+        /* Webhook URL Helper */
+        function updateWebhookUrl() {
+            const ip = document.getElementById('input-server-ip').value || 'localhost';
+            const port = document.getElementById('input-server-port').value || '8080';
+            const url = `http://${ip}:${port}/github-webhook/`;
+            document.getElementById('webhook-url-display').textContent = url;
+            showToast('Updated', 'Webhook payload URL recalculated', 'fa-rotate', 'bg-blue-600');
+        }
+
+        /* Health Check Tester */
+        function sendHealthCheck() {
+            const statusBox = document.getElementById('api-status-code');
+            const responseBox = document.getElementById('api-response-body');
+
+            statusBox.textContent = "200 OK";
+            statusBox.className = "font-bold text-emerald-400";
+            
+            responseBox.innerHTML = `
+<span class="text-slate-500">{</span>
+  <span class="text-blue-400">"status"</span>: <span class="text-emerald-400">"UP"</span>,
+  <span class="text-blue-400">"service"</span>: <span class="text-emerald-400">"my-project-api"</span>,
+  <span class="text-blue-400">"environment"</span>: <span class="text-emerald-400">"production"</span>,
+  <span class="text-blue-400">"uptime"</span>: <span class="text-amber-400">14205</span>
+<span class="text-slate-500">}</span>`;
+            showToast('Health Check OK', 'Target API responded with HTTP 200', 'fa-check-circle', 'bg-emerald-600');
+        }
+
+        function saveEnvVars() {
+            showToast('Saved', 'Environment variables updated', 'fa-floppy-disk', 'bg-blue-600');
+        }
+
+        function refreshServices() {
+            showToast('Refreshed', 'Systemd service status queried', 'fa-arrows-rotate', 'bg-blue-600');
+        }
+
+        /* Utilities */
+        function getTimestamp() {
+            return new Date().toISOString().split('T')[1].slice(0, 8);
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function clearConsoleLog() {
+            document.getElementById('console-output').innerHTML = '';
+        }
+
+        function copyConsoleLog() {
+            const text = document.getElementById('console-output').innerText;
+            copyToClipboardText(text);
+            showToast('Copied', 'Console log text copied to clipboard', 'fa-copy', 'bg-blue-600');
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).innerText;
+            copyToClipboardText(text);
+            showToast('Copied', 'Text copied to clipboard', 'fa-copy', 'bg-blue-600');
+        }
+
+        function copyToClipboardText(text) {
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+        }
+
+        function showToast(title, msg, iconClass, bgClass) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-msg').textContent = msg;
+            document.getElementById('toast-icon').className = `fa-solid ${iconClass} text-xl`;
+            toast.className = `fixed bottom-5 right-5 z-50 p-4 rounded-lg shadow-xl text-white flex items-center gap-3 transition-all ${bgClass}`;
+            
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Live stats fluctuation simulation
+        setInterval(() => {
+            if (currentTab === 'monitor') {
+                const cpu = (10 + Math.random() * 8).toFixed(1);
+                document.getElementById('stat-cpu').textContent = `${cpu}%`;
+                document.getElementById('bar-cpu').style.width = `${cpu}%`;
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
