@@ -1,0 +1,15 @@
+node{
+    
+    stage('Git Checkout'){
+        git branch: 'main', url: 'https://github.com/tabish-devops/testing.git'
+    }
+    // Code Will be saved in /var/lib/jenkins/workspace/item-name/-----
+    stage('Checking Files'){
+        sh 'ls /var/lib/jenkins/workspace/test'
+    }
+    stage('Deploying Website'){
+         sh 'sudo mv index.html /var/www/html'
+        
+    }
+    
+}
