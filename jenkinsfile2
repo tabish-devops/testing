@@ -1,0 +1,22 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Pulling Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/tabish-devops/testing.git'
+            }
+        }
+        
+        stage('Sending Code to NGINX') {
+            steps {
+                sh 'scp -o StrictHostKeyChecking=no index.html ubuntu@13.234.75.174:/tmp/'
+            }
+        }
+         stage('Moving code to serving Directory') {
+            steps {
+                sh 'ssh -o StrictHostKeyChecking=no ubuntu@13.234.75.174 "sudo mv /tmp/index.html /var/www/html"'
+            }
+        }
+    }
+}
